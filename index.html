@@ -197,7 +197,8 @@
     <div class="flex-between">
       <h2 style="margin:0;"><span class="n">4</span> Generar equipos</h2>
       <div style="display:flex; gap:8px;">
-        <button onclick="generateTeams()">⚡ Generar equipos</button>
+        <button onclick="generateTeams(false)">⚡ Generar equipos</button>
+        <button class="secondary" id="reshuffleBtn" onclick="generateTeams(true)" disabled>🔀 Buscar otro acomodo</button>
         <button class="secondary" id="pdfBtn" onclick="downloadPdf()" disabled>📄 Descargar PDF</button>
       </div>
     </div>
@@ -348,7 +349,97 @@ function variance(arr){
   return arr.reduce((a,b)=>a+(b-m)*(b-m),0)/arr.length;
 }
 
-function generateTeams(){
+function shuffleInPlace(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+// Firma única de una repartición de equipos (sin importar el orden de los equipos
+// ni el orden de los integrantes dentro de cada uno), para poder detectar si dos
+// resultados son "el mismo acomodo" o uno distinto.
+function signatureOf(teams){
+  return teams.map(t => t.members.map(m=>m.name).slice().sort().join(',')).sort().join('|');
+}
+
+// Los equipos pueden tener distinto número de pilotos (2, 3 o 4), así que TODO el balanceo
+// -asignación inicial y ajuste fino- se hace sobre el PROMEDIO por piloto de cada equipo,
+// nunca sobre la suma total (una suma no es comparable entre equipos de distinto tamaño).
+function avgCatOf(t){ return t.members.length ? t.catTotal/t.members.length : 0; }
+function avgGenOf(t){ return t.members.length ? t.genTotal/t.members.length : 0; }
+
+// Arma UNA repartición de equipos. Si randomize=true, se agrega variación aleatoria
+// al orden de asignación inicial y al orden en que se prueban los intercambios, para
+// que corridas distintas puedan converger a acomodos distintos (pero igual de buscados
+// para quedar parejos, no al azar puro).
+function runAssignment(participants, sizes, wCat, wFine, randomize){
+  const jitter = randomize ? 0.12 : 0; // segundos, solo afecta el ORDEN de asignación inicial
+  const withKey = participants.map(p => ({p, key: p.catTime + (randomize ? (Math.random()-0.5)*jitter : 0)}));
+  withKey.sort((a,b)=>a.key-b.key);
+  const sorted = withKey.map(x=>x.p);
+
+  const teams = sizes.map(()=>({members:[], catTotal:0, genTotal:0}));
+  sorted.forEach(p=>{
+    let candidates = teams.map((t,i)=>({i,t})).filter(x=>x.t.members.length < sizes[x.i]);
+    candidates.sort((a,b)=> avgCatOf(a.t) - avgCatOf(b.t));
+    const chosen = candidates[0];
+    chosen.t.members.push(p);
+    chosen.t.catTotal += p.catTime;
+    chosen.t.genTotal += p.genAvg;
+  });
+
+  function combinedObjective(teamsArr){
+    const catAvgs = teamsArr.map(avgCatOf);
+    const genAvgs = teamsArr.map(avgGenOf);
+    return wCat*variance(catAvgs) + wFine*variance(genAvgs);
+  }
+
+  // hill-climb swap refinement (intercambios de un integrante entre dos equipos)
+  let improved = true;
+  let iterations = 0;
+  while(improved && iterations < 500){
+    improved = false;
+    iterations++;
+    let bestObj = combinedObjective(teams);
+    const pairs = [];
+    for(let a=0; a<teams.length; a++) for(let b=a+1; b<teams.length; b++) pairs.push([a,b]);
+    if(randomize) shuffleInPlace(pairs);
+    for(const [a,b] of pairs){
+      const idxA = randomize ? shuffleInPlace([...teams[a].members.keys()]) : [...teams[a].members.keys()];
+      const idxB = randomize ? shuffleInPlace([...teams[b].members.keys()]) : [...teams[b].members.keys()];
+      for(const i of idxA){
+        for(const j of idxB){
+          const pa = teams[a].members[i];
+          const pb = teams[b].members[j];
+          teams[a].members[i] = pb; teams[b].members[j] = pa;
+          teams[a].catTotal += pb.catTime - pa.catTime;
+          teams[a].genTotal += pb.genAvg - pa.genAvg;
+          teams[b].catTotal += pa.catTime - pb.catTime;
+          teams[b].genTotal += pa.genAvg - pb.genAvg;
+          const newObj = combinedObjective(teams);
+          if(newObj < bestObj - 1e-9){
+            bestObj = newObj;
+            improved = true;
+          } else {
+            teams[a].members[i] = pa; teams[b].members[j] = pb;
+            teams[a].catTotal += pa.catTime - pb.catTime;
+            teams[a].genTotal += pa.genAvg - pb.genAvg;
+            teams[b].catTotal += pb.catTime - pa.catTime;
+            teams[b].genTotal += pb.genAvg - pa.genAvg;
+          }
+        }
+      }
+    }
+  }
+
+  return {teams, objective: combinedObjective(teams)};
+}
+
+let lastSignature = null; // acomodo mostrado la última vez, para que "Buscar otro acomodo" no repita lo mismo
+
+function generateTeams(reshuffle){
   const metricType = document.getElementById('metric').value;
   const cat = document.getElementById('tonightCat').value;
   const wFine = parseFloat(document.getElementById('weightSlider').value)/100;
@@ -393,70 +484,27 @@ function generateTeams(){
   const N = participants.length;
   const sizes = computeTeamSizes(N, minT, maxT, forced);
 
-  // Los equipos pueden tener distinto número de pilotos (2, 3 o 4), así que TODO el balanceo
-  // -asignación inicial y ajuste fino- se hace sobre el PROMEDIO por piloto de cada equipo,
-  // nunca sobre la suma total (una suma no es comparable entre equipos de distinto tamaño).
-  const avgCatOf = t => t.members.length ? t.catTotal/t.members.length : 0;
-  const avgGenOf = t => t.members.length ? t.genTotal/t.members.length : 0;
-
-  // greedy assignment: sort fastest(lowest time) first, assign to team with lowest current AVERAGE among non-full teams
-  const sorted = [...participants].sort((a,b)=>a.catTime-b.catTime);
-  const teams = sizes.map(()=>({members:[], catTotal:0, genTotal:0}));
-
-  sorted.forEach(p=>{
-    // candidate teams not yet full
-    let candidates = teams.map((t,i)=>({i,t})).filter(x=>x.t.members.length < sizes[x.i]);
-    candidates.sort((a,b)=> avgCatOf(a.t) - avgCatOf(b.t));
-    const chosen = candidates[0];
-    chosen.t.members.push(p);
-    chosen.t.catTotal += p.catTime;
-    chosen.t.genTotal += p.genAvg;
-  });
-
-  function combinedObjective(teamsArr){
-    const catAvgs = teamsArr.map(avgCatOf);
-    const genAvgs = teamsArr.map(avgGenOf);
-    return wCat*variance(catAvgs) + wFine*variance(genAvgs);
-  }
-
-  // hill-climb swap refinement (single-member swaps between any two teams)
-  let improved = true;
-  let iterations = 0;
-  while(improved && iterations < 500){
-    improved = false;
-    iterations++;
-    let bestObj = combinedObjective(teams);
-    for(let a=0; a<teams.length; a++){
-      for(let b=a+1; b<teams.length; b++){
-        for(let i=0; i<teams[a].members.length; i++){
-          for(let j=0; j<teams[b].members.length; j++){
-            const pa = teams[a].members[i];
-            const pb = teams[b].members[j];
-            // try swap
-            teams[a].members[i] = pb; teams[b].members[j] = pa;
-            teams[a].catTotal += pb.catTime - pa.catTime;
-            teams[a].genTotal += pb.genAvg - pa.genAvg;
-            teams[b].catTotal += pa.catTime - pb.catTime;
-            teams[b].genTotal += pa.genAvg - pb.genAvg;
-            const newObj = combinedObjective(teams);
-            if(newObj < bestObj - 1e-9){
-              bestObj = newObj;
-              improved = true;
-            } else {
-              // revert
-              teams[a].members[i] = pa; teams[b].members[j] = pb;
-              teams[a].catTotal += pa.catTime - pb.catTime;
-              teams[a].genTotal += pa.genAvg - pb.genAvg;
-              teams[b].catTotal += pb.catTime - pa.catTime;
-              teams[b].genTotal += pb.genAvg - pa.genAvg;
-            }
-          }
-        }
-      }
+  let chosen;
+  if(!reshuffle){
+    chosen = runAssignment(participants, sizes, wCat, wFine, false);
+  } else {
+    const ATTEMPTS = 30;
+    const results = [];
+    for(let k=0;k<ATTEMPTS;k++){
+      const r = runAssignment(participants, sizes, wCat, wFine, true);
+      results.push({...r, sig: signatureOf(r.teams)});
+    }
+    const distinct = results.filter(r => r.sig !== lastSignature);
+    const pool = distinct.length ? distinct : results;
+    pool.sort((a,b)=>a.objective-b.objective);
+    chosen = pool[0];
+    if(!distinct.length){
+      warnings.push('Con los pilotos y la categoría de hoy no encontré una combinación distinta que se mantenga igual de pareja — este resultado es prácticamente el único acomodo bueno posible.');
     }
   }
 
-  renderResults(teams, cat, warnings);
+  lastSignature = signatureOf(chosen.teams);
+  renderResults(chosen.teams, cat, warnings);
 }
 
 function teamLabel(t, idx){
@@ -505,6 +553,7 @@ function renderResults(teams, cat, warnings){
 
   lastResult = {teams, cat, avgArr, spread};
   document.getElementById('pdfBtn').disabled = false;
+  document.getElementById('reshuffleBtn').disabled = false;
 }
 
 function downloadPdf(){
