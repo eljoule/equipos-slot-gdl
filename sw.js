@@ -2,7 +2,7 @@
 // Sube este número cada vez que subas una versión nueva del index.html a GitHub,
 // así el navegador de los pilotos descarga la versión nueva en vez de quedarse
 // con una copia vieja guardada en caché.
-const CACHE_VERSION = 'slot-gdl-v1';
+const CACHE_VERSION = 'slot-gdl-v2';
 const APP_SHELL = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
