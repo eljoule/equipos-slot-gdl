@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B6A88">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mesa FX">
+<title>Mesa FX · USD/MXN</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Concepto: mesa de dinero en una columna. Arriba el precio, en medio la pregunta, abajo la orden. */
+:root{
+  --bg:#EBEFF3; --card:#FFFFFF; --ink:#14212B; --mut:#586878; --line:#D5DDE5;
+  --acc:#0B6A88; --accsoft:rgba(11,106,136,.12);
+  --vbg:#0D3A4D; --vink:#F2F7FA; --vmut:#A9C4D0;
+  --good:#17794A; --warn:#9A5B00; --bad:#B3261E;
+  --t-spot:#0B6A88; --t-fwd:#C77F12; --t-opc:#5F7A8B; --t-open:#C3CDD6;
+  --band1:rgba(11,106,136,.24); --band2:rgba(11,106,136,.10);
+  --fs:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --fm:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D151C; --card:#15212B; --ink:#E6EDF2; --mut:#93A4B2; --line:#243443;
+    --acc:#4DB3D6; --accsoft:rgba(77,179,214,.14);
+    --vbg:#17384A; --vink:#EEF5F8; --vmut:#9FC0CF;
+    --good:#4CC38A; --warn:#E3A64B; --bad:#F07A72;
+    --t-spot:#4DB3D6; --t-fwd:#E3A64B; --t-opc:#8AA7B8; --t-open:#35485A;
+    --band1:rgba(77,179,214,.28); --band2:rgba(77,179,214,.12);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D151C; --card:#15212B; --ink:#E6EDF2; --mut:#93A4B2; --line:#243443;
+  --acc:#4DB3D6; --accsoft:rgba(77,179,214,.14);
+  --vbg:#17384A; --vink:#EEF5F8; --vmut:#9FC0CF;
+  --good:#4CC38A; --warn:#E3A64B; --bad:#F07A72;
+  --t-spot:#4DB3D6; --t-fwd:#E3A64B; --t-opc:#8AA7B8; --t-open:#35485A;
+  --band1:rgba(77,179,214,.28); --band2:rgba(77,179,214,.12);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--fs);padding-block:18px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:680px;margin:0 auto;display:grid;gap:14px}
+.wrap>*{min-width:0}
+h1,h2,h3,p{margin:0}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.top h1{font-size:19px;font-weight:600;letter-spacing:-.01em}
+.top .sub{color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px}
+.lbl{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);font-weight:500}
+.mono{font-family:var(--fm);font-variant-numeric:tabular-nums}
+.banner{border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13.5px;background:transparent}
+/* mercado */
+.mk{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+.big{font:500 clamp(34px,9vw,46px)/1.05 var(--fm);letter-spacing:-.02em;margin-top:4px}
+.mid{font:500 clamp(24px,6.5vw,30px)/1.1 var(--fm);margin-top:4px;color:var(--ink)}
+.meta{color:var(--mut);font-size:12.5px;margin-top:6px}
+.chg{font-family:var(--fm);font-size:13.5px;margin-top:6px}
+.up{color:var(--bad)} .dn{color:var(--good)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px;color:var(--mut)}
+.chip.b{border-color:var(--acc);color:var(--acc)}
+@media (max-width:440px){.mk{grid-template-columns:1fr}}
+/* grafica */
+.chart-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.chart-h h2{font-size:15px;font-weight:600}
+svg.ch{width:100%;height:auto;display:block}
+svg text{font-family:var(--fm);font-size:10.5px;fill:var(--mut)}
+.ax{stroke:var(--line);stroke-width:1}
+.b90{fill:var(--band2)} .b68{fill:var(--band1)}
+.mline{fill:none;stroke:var(--acc);stroke-width:2.2}
+.dot{fill:var(--acc);stroke:var(--card);stroke-width:2}
+.lvS{stroke:var(--good);stroke-dasharray:4 4;stroke-width:1} .lvR{stroke:var(--bad);stroke-dasharray:4 4;stroke-width:1}
+.tS{fill:var(--good)!important} .tR{fill:var(--bad)!important}
+.evm{fill:var(--warn)}
+.evl{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12.5px;color:var(--mut)}
+.evl b{font-weight:500;color:var(--ink)}
+.leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:8px}
+.leg i{display:inline-block;width:14px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+/* preguntas */
+.q{display:grid;gap:14px}
+.q h2{font-size:17px;font-weight:600}
+.field label{display:block;font-weight:500;margin-bottom:6px}
+.inp{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);padding:0 12px}
+.inp:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px var(--accsoft)}
+.inp span{font-family:var(--fm);color:var(--mut);margin-right:6px}
+.inp input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:500 22px/1 var(--fm);padding:13px 0;outline:none;width:100%}
+.inp.d input{font-size:18px}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.qb{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:5px 12px;font:13px var(--fs);cursor:pointer}
+.qb:hover{border-color:var(--acc);color:var(--acc)}
+.qb:focus-visible,.btn:focus-visible,summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+details.opt{border-top:1px solid var(--line);padding-top:12px}
+details.opt summary{cursor:pointer;color:var(--mut);font-size:13.5px}
+details.opt .inp{margin-top:8px;max-width:220px}
+details.opt .inp input{font-size:18px}
+.hint{font-size:12.5px;color:var(--mut);margin-top:6px}
+/* resultado */
+.verdict{background:var(--vbg);color:var(--vink);border-radius:8px;padding:18px;display:grid;gap:10px}
+.verdict .lbl{color:var(--vmut)}
+.verdict h2{font-size:21px;line-height:1.25;font-weight:600;text-wrap:balance}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{border:1px solid rgba(255,255,255,.28);border-radius:4px;padding:2px 8px;font-size:12px;font-family:var(--fm)}
+.verdict p{color:var(--vmut);font-size:14px}
+.bar{display:flex;height:34px;border-radius:6px;overflow:hidden;gap:2px}
+.bar div{display:flex;align-items:center;justify-content:center;font:500 12.5px var(--fm);color:#fff;min-width:0}
+.bar .open{color:var(--ink)}
+.tr{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)}
+.tr:first-of-type{border-top:0}
+.sw{width:10px;border-radius:2px;grid-row:1/span 3}
+.tr .h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-weight:600}
+.tr .h .mono{font-weight:500}
+.tr .w{font-size:13.5px;color:var(--mut)}
+.tr .n{font-size:13.5px}
+.one{display:grid;gap:8px}
+.one .day{font:600 22px/1.2 var(--fs);text-wrap:balance}
+.one .win{font:500 16px var(--fm);color:var(--acc)}
+ul.pl{margin:0;padding-left:18px;display:grid;gap:6px}
+ul.pl li{font-size:14px}
+.alt{border-left:3px solid var(--acc);padding:2px 0 2px 12px;font-size:14px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kv .v{font:500 18px var(--fm);margin-top:2px}
+.kv .s{font-size:12.5px;color:var(--mut)}
+.btn{border:1px solid var(--acc);background:var(--acc);color:var(--card);border-radius:8px;padding:10px 16px;font:600 14px var(--fs);cursor:pointer}
+.btn.g{background:transparent;color:var(--acc)}
+.foot{font-size:12px;color:var(--mut)}
+.err{color:var(--bad);font-weight:500}
+.sec-h{font-size:15px;font-weight:600;margin-bottom:6px}
+@media (prefers-reduced-motion:no-preference){.bar div{transition:flex-basis .25s ease}}
+
+.refbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;font-size:13px;color:var(--mut)}
+.refbar .btn{padding:6px 12px;font-size:13px}
+.rt{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+.rt .chip.best{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+.px{font:500 15px/1.4 'IBM Plex Mono',monospace;margin:6px 0}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Mesa FX · USD/MXN</h1>
+    <span class="sub" id="status">Cargando datos</span>
+  </div>
+
+  <div class="refbar"><span id="age" role="status"></span><button id="refbtn" class="btn g" type="button">Recargar datos</button></div>
+  <div id="hol" class="banner" hidden></div>
+  <div id="stale" class="banner" hidden></div>
+
+  <section class="card" aria-label="Tipo de cambio de hoy">
+    <div class="mk">
+      <div>
+        <div class="lbl">Spot interbancario</div>
+        <div class="big" id="spot">18.7328</div>
+        <div class="chg" id="chg"></div>
+        <div class="meta" id="spotmeta"></div>
+      </div>
+      <div>
+        <div class="lbl" id="fixlbl">FIX Banxico</div>
+        <div class="mid" id="fix">18.7962</div>
+        <div class="meta" id="fixmeta"></div>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section class="card" aria-label="Proyección a una semana">
+    <div class="chart-h"><h2>Próxima semana</h2><span class="foot">Escenario del modelo, no es pronóstico</span></div>
+    <div id="chart"></div>
+    <div class="leg"><span><i style="background:var(--band1)"></i>68% de los casos</span><span><i style="background:var(--band2)"></i>90% de los casos</span><span><i style="background:var(--acc);height:3px"></i>Escenario central</span></div>
+    <div class="evl" id="evl"></div>
+  </section>
+
+  <section class="card q" aria-label="Tu compra">
+    <h2>¿Qué necesitas comprar?</h2>
+    <div class="field">
+      <label for="usd">¿Cuántos USD necesitas?</label>
+      <div class="inp"><span>USD</span><input id="usd" type="text" inputmode="numeric" autocomplete="off" value="250,000"></div>
+    </div>
+    <div class="field">
+      <label for="fecha">¿Para qué día los necesitas?</label>
+      <div class="inp d"><input id="fecha" type="date"></div>
+      <div class="row" id="quick"></div>
+    </div>
+    <details class="opt">
+      <summary>Agregar tipo de cambio presupuestal (opcional)</summary>
+      <div class="inp"><span>MXN</span><input id="budget" type="text" inputmode="decimal" autocomplete="off" placeholder="19.50"></div>
+      <p class="hint">Con tu presupuesto, el plan ajusta cuánto cubrir y dónde poner el tope.</p>
+    </details>
+    <p class="hint" id="ex">Ejemplo precargado: 250,000 USD a 15 días. Cámbialo y la estrategia se recalcula.</p>
+  </section>
+
+  <div id="out" class="wrap" style="max-width:none"></div>
+
+  <p class="foot">Informativo. No es asesoría financiera ni de inversión. Confirma cotizaciones y condiciones con tu banco o mesa de dinero antes de operar. Rangos y niveles son estimaciones de un modelo de volatilidad con los datos de arriba.</p>
+</div>
+
+<script>
+// Motor de estrategia Mesa FX: funciones puras, sin DOM.
+const MesaFX = (function () {
+  'use strict';
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+  const DEFAULT_DATA = {
+    asof: '2026-11-02T10:10',
+    spot: 18.5631, cierreAnterior: 18.7856, rangoDia: [18.5557, 18.8198],
+    fix: 18.7962, fixFecha: '2026-10-30', fixHoy: null,
+    soporte: [18.45, 18.60], techo: [19.00, 19.25],
+    vol: 12.5, tasaMXN: 6.5, tasaUSD: 3.9,
+    anclaje: 18.8055, vidaMedia: 3,
+    fixes: [{ fecha: '2026-10-29', valor: 18.8148 }, { fecha: '2026-10-30', valor: 18.7962 }],
+    fuente: 'Tribuna e Infobae, apertura del 2 nov 2026',
+    festivos: ['2026-11-02', '2026-11-11', '2026-11-16', '2026-11-26', '2026-12-25', '2027-01-01', '2027-01-18', '2027-02-01', '2027-02-15', '2027-03-15'],
+    eventos: [
+      { fecha: '2026-11-03', nombre: 'Elecciones intermedias EE.UU.', riesgo: 3, extra: 0.10, confirmado: true },
+      { fecha: '2026-11-05', nombre: 'Decisión de Banxico', riesgo: 2, extra: 0.06, confirmado: true },
+      { fecha: '2026-11-06', nombre: 'Empleo EE.UU. (NFP octubre)', riesgo: 3, extra: 0.09, confirmado: false },
+      { fecha: '2026-11-09', nombre: 'INPC México (octubre)', riesgo: 1, extra: 0.03, confirmado: false },
+      { fecha: '2026-11-12', nombre: 'CPI EE.UU. (octubre)', riesgo: 2, extra: 0.07, confirmado: false },
+      { fecha: '2026-12-09', nombre: 'Decisión de la Fed', riesgo: 3, extra: 0.10, confirmado: false },
+      { fecha: '2026-12-17', nombre: 'Decisión de Banxico', riesgo: 2, extra: 0.06, confirmado: false }
+    ]
+  };
+
+  // ---- fechas (ISO YYYY-MM-DD, siempre en UTC para no depender de la zona) ----
+  function pd(s) { const p = s.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2])); }
+  function fd(dt) { return dt.toISOString().slice(0, 10); }
+  function addDays(s, n) { const d = pd(s); d.setUTCDate(d.getUTCDate() + n); return fd(d); }
+  function diffDays(a, b) { return Math.round((pd(a) - pd(b)) / 86400000); }
+  function isBD(s, hol) { const w = pd(s).getUTCDay(); return w !== 0 && w !== 6 && hol.indexOf(s) < 0; }
+  function nextBD(s, hol) { let x = addDays(s, 1); while (!isBD(x, hol)) x = addDays(x, 1); return x; }
+  function prevBD(s, hol) { let x = addDays(s, -1); while (!isBD(x, hol)) x = addDays(x, -1); return x; }
+  function bdList(a, b, hol) { const out = []; let x = a; while (x <= b) { if (isBD(x, hol)) out.push(x); x = addDays(x, 1); } return out; }
+  function fmtDate(s, mode) {
+    const d = pd(s), w = DIAS[d.getUTCDay()], m = MESES[d.getUTCMonth()], n = d.getUTCDate();
+    return mode === 'short' ? w.slice(0, 3) + ' ' + n + ' ' + m.slice(0, 3) : w + ' ' + n + ' de ' + m;
+  }
+  const money = n => '$' + Math.round(n).toLocaleString('en-US');
+  const snap = (x, step) => Math.round(x / step) * step;
+  function splitUSD(usd, pcts) {
+    let acc = 0;
+    return pcts.map((p, i) => {
+      if (i === pcts.length - 1) return usd - acc;
+      const a = Math.round(usd * p / 100 / 100) * 100; acc += a; return a;
+    });
+  }
+
+  // ---- modelo de precio ----
+  const asofDate = d => d.asof.slice(0, 10);
+  function fwd(d, days) { return d.spot * (1 + (d.tasaMXN - d.tasaUSD) / 100 * days / 360); }
+  function varTo(d, dateStr) {
+    const dayVar = Math.pow(d.spot * d.vol / 100 / Math.sqrt(252), 2);
+    let v = 0, x = asofDate(d);
+    while (x < dateStr) {
+      x = addDays(x, 1);
+      if (isBD(x, d.festivos)) {
+        v += dayVar;
+        d.eventos.forEach(e => { if (e.fecha === x) v += e.extra * e.extra; });
+      }
+    }
+    return v;
+  }
+  // ---- predicción de ruta: carry + reversión al promedio reciente + prima de riesgo de eventos ----
+  function bdIdx(d, dateStr) {
+    let x = asofDate(d), i = 0;
+    while (x < dateStr) { x = addDays(x, 1); if (isBD(x, d.festivos)) i++; }
+    return i;
+  }
+  function premium(d, day) {
+    let p = 0;
+    d.eventos.forEach(e => {
+      const pr = e.prima != null ? e.prima : 0.5 * e.extra;
+      if (day === e.fecha || day === prevBD(e.fecha, d.festivos)) p += pr;
+    });
+    return p;
+  }
+  function components(d, day) {
+    const base = asofDate(d), s = d.spot;
+    const carry = fwd(d, diffDays(day, base)) - s;
+    const anc = d.anclaje != null ? d.anclaje : s, hl = d.vidaMedia || 3;
+    const i = Math.min(bdIdx(d, day), 10);
+    const rev = (anc - s) * (1 - Math.pow(0.5, i / hl));
+    let sg = 0;
+    d.eventos.forEach(e => { if (e.fecha <= day && e.fecha > base) sg += (e.sesgo || 0); });
+    return { carry: carry, rev: rev, sg: sg, prem: premium(d, day) - premium(d, base) };
+  }
+  function predicted(d, day) { const c = components(d, day); return d.spot + c.carry + c.rev + c.sg + c.prem; }
+
+  function projection(d) {
+    const base = asofDate(d), days = [base];
+    let x = base;
+    while (days.length < 6) { x = nextBD(x, d.festivos); days.push(x); }
+    return days.map(dt => {
+      const sg = Math.sqrt(varTo(d, dt)), mid = predicted(d, dt);
+      return { date: dt, mid: mid, lo68: mid - sg, hi68: mid + sg, lo90: mid - 1.645 * sg, hi90: mid + 1.645 * sg,
+        ev: d.eventos.filter(e => e.fecha === dt) };
+    });
+  }
+
+  // ---- estrategia ----
+  function strategy(o) {
+    const d = o.data, hol = d.festivos, s = d.spot;
+    const s0 = d.soporte[0], s1 = d.soporte[1], r0 = d.techo[0], r1 = d.techo[1];
+    const today = o.today, hour = o.hour, warnings = [];
+    if (!(o.usd > 0)) return { error: 'Escribe cuántos USD necesitas.' };
+    if (!o.target) return { error: 'Elige para qué día los necesitas.' };
+    if (o.target < today) return { error: 'Esa fecha ya pasó. Elige hoy o una fecha futura.' };
+
+    const start = (isBD(today, hol) && hour < 13) ? today : nextBD(today, hol);
+    let last = prevBD(o.target, hol); // liquidación T+1: hay que operar un día hábil antes
+    if (o.target === today || last < start) {
+      last = start;
+      warnings.push('Tu fecha deja menos de un día hábil de margen. Pide liquidación el mismo día o a 24 horas y confirma el sobreprecio con tu banco.');
+    }
+    const days = bdList(start, last, hol), n = days.length;
+    const cat = n <= 3 ? 'corto' : (n <= 15 ? 'mixto' : 'plazo');
+
+    const dT = Math.max(1, diffDays(o.target, asofDate(d)));
+    const F = fwd(d, dT), sigma = Math.sqrt(varTo(d, o.target));
+
+    let zone;
+    if (s >= r1) zone = 'ruptura'; else if (s >= r0) zone = 'alerta'; else if (s <= s1) zone = 'compra';
+    else if (s <= s1 + 0.10) zone = 'cerca'; else zone = 'medio';
+    const zoneText = {
+      compra: 'En zona de compra (en o bajo ' + s1.toFixed(2) + ')',
+      cerca: 'Cerca del soporte (' + s1.toFixed(2) + ')',
+      medio: 'En zona media',
+      alerta: 'En zona de alerta (sobre ' + r0.toFixed(2) + ')',
+      ruptura: 'Techo roto (sobre ' + r1.toFixed(2) + ')'
+    }[zone];
+
+    let tight = 'normal';
+    if (o.budget > 0) { const m = o.budget - s; tight = m <= 0.05 ? 'sin' : (m < 0.35 ? 'justo' : 'holgado'); }
+    const urgent = zone === 'alerta' || zone === 'ruptura' || tight === 'justo';
+    const cheap = zone === 'compra' || zone === 'cerca';
+
+    const lim7 = days.slice(0, 7).pop();
+    const near = d.eventos.filter(e => e.fecha >= start && e.fecha <= lim7);
+    const evs = d.eventos.filter(e => e.fecha >= start && e.fecha <= last);
+    const vol = near.some(e => e.riesgo >= 3) ? 'Alta' : (d.vol >= 11 || near.some(e => e.riesgo >= 2) ? 'Moderada-Alta' : 'Moderada');
+
+    const windowText = day => (day === today && hour >= 11) ? 'hoy, antes de las 13:00' : '8:30–11:00';
+    const T = (pct, tipo, inst, cuando, nivel) => ({ pct: pct, tipo: tipo, inst: inst, cuando: cuando, nivel: nivel });
+    const sd = fmtDate(start, 'short'), ld = fmtDate(last, 'short');
+    const sdTxt = start === today ? 'Hoy (' + sd + ')' : sd;
+    let tramos = [], bias;
+
+    if (tight === 'sin') {
+      bias = 'COBERTURA INMEDIATA';
+      tramos = [cat === 'corto'
+        ? T(100, 'spot', 'Spot a mercado', sdTxt + ', ' + windowText(start), 'A mercado (' + s.toFixed(2) + ')')
+        : T(100, 'fwd', 'Forward a tu fecha', 'Cotiza hoy, liquidación ' + fmtDate(o.target, 'short'), '~' + F.toFixed(2) + ' (indicativo)')];
+    } else if (cat === 'corto') {
+      bias = 'EJECUCIÓN SPOT';
+      if (n === 1) {
+        tramos = [
+          T(60, 'spot', 'Spot a mercado', sdTxt + ', 8:30–10:00', 'A mercado (bajo ' + r0.toFixed(2) + ')'),
+          T(40, 'spot', 'Spot con orden limitada', sdTxt + ', hasta las 11:00', 'En ' + s1.toFixed(2) + ' o menos; si no se llena a las 11:00, a mercado')
+        ];
+      } else {
+        const p = urgent ? [70, 0, 30] : cheap ? [60, 20, 20] : [40, 30, 30];
+        tramos = [T(p[0], 'spot', 'Spot a mercado', sdTxt + ', ' + windowText(start), 'A mercado (bajo ' + r0.toFixed(2) + ')')];
+        if (p[1]) tramos.push(T(p[1], 'spot', 'Spot con orden limitada', 'Vigente hasta ' + ld + ', 11:00', 'En ' + s1.toFixed(2) + ' o menos'));
+        tramos.push(T(p[2], 'spot', 'Spot a mercado, cierre de ventana', ld + ', 9:00–11:00', 'Completa lo que no se llenó'));
+      }
+    } else if (cat === 'mixto') {
+      bias = 'COBERTURA DINÁMICA';
+      const p = urgent ? [25, 65, 10] : cheap ? [50, 35, 15] : [40, 40, 20];
+      const resLast = prevBD(last, hol) >= start ? prevBD(last, hol) : last;
+      tramos = [
+        T(p[0], 'spot', 'Spot escalonado', 'En 2 bloques: ' + sdTxt + ' y en el primer retroceso', 'Primero a mercado; segundo en ' + s1.toFixed(2) + ' o menos'),
+        T(p[1], 'fwd', 'Forward', 'Cotiza hoy, liquidación ' + fmtDate(o.target, 'short'), '~' + F.toFixed(2) + ' (indicativo)'),
+        T(p[2], 'spot', 'Reserva con orden limitada', 'Hasta ' + fmtDate(resLast, 'short'), 'En ' + s0.toFixed(2) + ' o menos; si no se llena, pasa a forward')
+      ];
+    } else {
+      bias = 'COBERTURA A PLAZO (FORWARD / OPCIONES)';
+      const p = urgent ? [50, 30, 10, 10] : [30, 30, 20, 20];
+      const callK = snap(F + 0.50, 0.05), putK = snap(F - 0.45, 0.05);
+      const collarOk = o.usd * p[1] / 100 >= 50000;
+      tramos = [
+        T(p[0], 'fwd', 'Forwards escalonados', 'Uno por cada pago; si es pago único, a la fecha ' + fmtDate(o.target, 'short'), '~' + F.toFixed(2) + ' (indicativo)'),
+        collarOk
+          ? T(p[1], 'opc', 'Collar a plazo', 'Vence cerca de ' + fmtDate(o.target, 'short'), 'Compras call USD ' + callK.toFixed(2) + ' y vendes put USD ' + putK.toFixed(2) + ' (costo cercano a cero). Si tu banco no lo cotiza por este monto, pásalo a forward.')
+          : T(p[1], 'fwd', 'Forward adicional', 'Cotiza hoy, liquidación ' + fmtDate(o.target, 'short'), 'El collar no aplica por monto (menos de $50,000 USD en el tramo)'),
+        T(p[2], 'spot', 'Spot con órdenes limitadas', 'Vigentes hasta ' + ld, 'En ' + s1.toFixed(2) + ' o menos'),
+        T(p[3], 'open', 'Sin cubrir', 'Revisión mensual', 'Margen de flexibilidad')
+      ];
+    }
+    const amounts = splitUSD(o.usd, tramos.map(t => t.pct));
+    tramos.forEach((t, i) => { t.usd = amounts[i]; });
+
+    // reglas de parada
+    const hardStop = o.budget > 0 ? Math.min(o.budget, r1) : r1;
+    const softStop = Math.min(r0, hardStop - 0.15);
+    const stops = [
+      'Si el spot cierra sobre ' + softStop.toFixed(2) + ' dos sesiones seguidas, cubre lo pendiente con forward a mercado.',
+      'Si toca ' + hardStop.toFixed(2) + ', cierra el 100% restante. No persigas más alzas.',
+      'Si baja a ' + s0.toFixed(2) + ' o menos, acelera la reserva y compra spot.'
+    ];
+    evs.filter(e => e.riesgo >= 2).slice(0, 4).forEach(e => {
+      stops.push('No ejecutes bloques el ' + fmtDate(e.fecha, 'short') + ' entre 7:30 y 9:30 (' + e.nombre + '). Espera 30 a 60 minutos tras el dato.');
+    });
+    if (o.budget > 0) {
+      if (tight === 'sin') stops.unshift('Tu tipo de cambio presupuestal (' + o.budget.toFixed(2) + ') casi no deja colchón sobre el spot. Cubre hoy.');
+      else if (tight === 'justo') stops.unshift('Tu presupuesto (' + o.budget.toFixed(2) + ') deja poco colchón. Cubre al menos 60% cuanto antes.');
+    }
+
+    // compra en una sola transacción: se elige con la ruta prevista, no necesariamente hoy
+    const riskOf = day => {
+      let r = 1;
+      d.eventos.forEach(e => { if (e.fecha === day) r = Math.max(r, e.riesgo); });
+      const pv = prevBD(day, hol);
+      d.eventos.forEach(e => { if (e.fecha === pv && e.riesgo >= 3) r = Math.max(r, 2); });
+      return r;
+    };
+    let pool = days.slice();
+    if (urgent) pool = pool.slice(0, 2);
+    let elig = pool.filter(x => riskOf(x) <= 2);
+    if (!elig.length) elig = pool;
+    const ref = elig[0], refPx = predicted(d, ref);
+    let best = ref, bestPx = refPx;
+    elig.forEach(x => { const px = predicted(d, x); if (px < bestPx - 1e-9) { best = x; bestPx = px; } });
+    const edge = refPx - bestPx;
+    const later = elig.filter(x => x > ref).slice(0, 5).map(x => predicted(d, x));
+    const laterAvg = later.length ? later.reduce((u, v) => u + v, 0) / later.length : refPx;
+    // modo: 'esperar' (un día posterior sale más barato), 'ya' (esperar sale más caro), 'neutral'
+    let modo = 'neutral';
+    if (edge >= 0.02) modo = 'esperar'; else if (laterAvg - refPx >= 0.02) modo = 'ya';
+    if (modo !== 'esperar') { best = ref; bestPx = refPx; }
+    const ahorro = modo === 'esperar' ? edge : (modo === 'ya' ? laterAvg - refPx : 0);
+    const conf = (modo === 'neutral' || ahorro < 0.07) ? 'Baja' : 'Media';
+    const noEdge = modo === 'neutral';
+    const rBest = riskOf(best);
+    const cB = components(d, best), cR = components(d, ref);
+    const anc = d.anclaje != null ? d.anclaje : s;
+    const bullets = [];
+    if (days.length === 1) bullets.push('Es el único día hábil disponible antes de tu fecha.');
+    else if (modo === 'neutral') bullets.push('El modelo no ve diferencia clara entre los días disponibles (menos de 2 centavos). Compra el primer día tranquilo: ' + fmtDate(ref, 'short') + '.');
+    else if (modo === 'ya') {
+      bullets.push('El modelo prevé precios más altos en los días siguientes (~' + laterAvg.toFixed(2) + ' en promedio contra ~' + refPx.toFixed(2) + ' el ' + fmtDate(ref, 'short') + '). Conviene no esperar.');
+      const comingEv = d.eventos.filter(e => e.fecha > ref && e.fecha <= last && e.riesgo >= 2)[0];
+      if (cR.rev < 0 || components(d, later.length ? elig[1] : ref).rev > 0.005) bullets.push('El spot cotiza bajo su promedio reciente (' + anc.toFixed(2) + ') y tiende a rebotar.');
+      if (comingEv) bullets.push('Se acerca ' + comingEv.nombre + ' (' + fmtDate(comingEv.fecha, 'short') + '): el dólar suele cotizar con prima antes del dato.');
+    } else {
+      bullets.push('El modelo prevé el precio más bajo el ' + fmtDate(best, 'short') + ' (~' + bestPx.toFixed(2) + ') contra ~' + refPx.toFixed(2) + ' el ' + fmtDate(ref, 'short') + '.');
+      const passed = d.eventos.filter(e => e.fecha >= ref && e.fecha <= best);
+      if (cB.prem - cR.prem < -0.005 && passed.length) bullets.push('Para entonces ya pasó ' + passed.map(e => e.nombre).slice(0, 2).join(' y ') + ' y la prima de riesgo del evento se desinfla.');
+      if (cB.rev - cR.rev < -0.005) bullets.push('El spot cotiza sobre su promedio reciente (' + anc.toFixed(2) + '); se espera que ceda.');
+      else if (cB.rev - cR.rev > 0.005) bullets.push('El spot cotiza bajo su promedio reciente y tiende a rebotar; esperar tiene costo.');
+    }
+    bullets.push(rBest >= 2 ? 'Opera después del dato: 10:00–12:00 hora CDMX, cuando el primer movimiento ya se acomodó.'
+      : 'De 8:30 a 11:00 hora CDMX hay traslape Londres–Nueva York y los spreads son más cerrados. Después de las 13:00 la liquidez se adelgaza.');
+    bullets.push('Esperar no sale gratis: el forward a tu fecha ya cotiza ~' + F.toFixed(2) + ' (' + (F >= s ? '+' : '') + (F - s).toFixed(2) + ' contra hoy).');
+    const instr = n <= 3 ? 'Spot' : 'Forward a tu fecha (' + fmtDate(o.target, 'short') + ')';
+    if (n > 3) bullets.unshift('No compras el dólar ese día: cotizas y fijas el precio, y pagas hasta ' + fmtDate(o.target, 'short') + '. Así no inmovilizas pesos.');
+    const resDay = prevBD(last, hol) >= start ? prevBD(last, hol) : last;
+    const ruta = elig.slice(0, 8).map(x => ({ date: x, px: predicted(d, x), best: x === best, ref: x === ref }));
+    if (!ruta.some(r => r.best)) ruta.push({ date: best, px: bestPx, best: true, ref: false });
+    const single = {
+      day: best, dayText: fmtDate(best), window: rBest >= 2 ? '10:00–12:00' : windowText(best), risk: rBest, instrument: instr,
+      px: bestPx, refDay: ref, refPx: refPx, modo: modo, ahorro: ahorro, ahorroMXN: ahorro * o.usd, conf: conf, noEdge: noEdge, ruta: ruta,
+      bullets: bullets,
+      alt: days.length > 1 ? 'Si no tienes prisa: orden limitada en ' + s1.toFixed(2) + ' vigente hasta ' + fmtDate(resDay, 'short') + '. Si no se llena, compra a mercado el ' + ld + ' entre 9:00 y 11:00.' : ''
+    };
+
+    return {
+      usd: o.usd, target: o.target, start: start, last: last, n: n, cat: cat, bias: bias, vol: vol,
+      zone: zone, zoneText: zoneText, tight: tight, urgent: urgent, F: F, sigma: sigma,
+      range68: [F - sigma, F + sigma], range90: [F - 1.645 * sigma, F + 1.645 * sigma],
+      mxnSpot: o.usd * s, carry: o.usd * (F - s),
+      tramos: tramos, stops: stops, single: single, warnings: warnings, hardStop: hardStop, softStop: softStop,
+      events: evs
+    };
+  }
+
+  const api = { DEFAULT_DATA: DEFAULT_DATA, projection: projection, strategy: strategy, fmtDate: fmtDate, money: money,
+    predicted: predicted, addDays: addDays, diffDays: diffDays, isBD: isBD, nextBD: nextBD, prevBD: prevBD, fwd: fwd };
+  return api;
+})();
+
+
+</script>
+<script>
+(function () {
+  var M = MesaFX;
+  var DATA = M.DEFAULT_DATA, live = false;
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var money = M.money;
+  var TYPE = { spot: 'var(--t-spot)', fwd: 'var(--t-fwd)', opc: 'var(--t-opc)', open: 'var(--t-open)' };
+  var lastResult = null, loading = false, note = '';
+
+  function cdmx() {
+    var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+    var g = function (t) { return p.filter(function (x) { return x.type === t; })[0].value; };
+    return { date: g('year') + '-' + g('month') + '-' + g('day'), hour: +g('hour') + (+g('minute')) / 60 };
+  }
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
+
+  function renderMarket() {
+    var d = DATA, now = cdmx();
+    $('spot').textContent = d.spot.toFixed(4);
+    var diff = d.spot - d.cierreAnterior, pct = diff / d.cierreAnterior * 100;
+    $('chg').innerHTML = '<span class="' + (diff > 0 ? 'up' : 'dn') + '">' + (diff > 0 ? '▲ +' : '▼ ') + diff.toFixed(4) + ' (' + (diff > 0 ? '+' : '') + pct.toFixed(2) + '%)</span> <span style="color:var(--mut)">vs cierre ' + d.cierreAnterior.toFixed(4) + '</span>';
+    $('spotmeta').textContent = 'Corte ' + d.asof.slice(11) + ' h CDMX · rango del día ' + d.rangoDia[0].toFixed(2) + '–' + d.rangoDia[1].toFixed(2);
+    if (d.fixHoy) { $('fixlbl').textContent = 'FIX de hoy'; $('fix').textContent = d.fixHoy.toFixed(4); $('fixmeta').textContent = 'Publicado por Banxico'; }
+    else { var hb = M.isBD(now.date, d.festivos); $('fixlbl').textContent = 'FIX más reciente'; $('fix').textContent = d.fix.toFixed(4); $('fixmeta').textContent = M.fmtDate(d.fixFecha, 'short') + (hb ? ' · el de hoy sale alrededor de las 12:00' : ' · hoy no hay FIX (día inhábil)'); }
+    var hl = $('hol'), dow = new Date(now.date + 'T12:00:00Z').getUTCDay();
+    if (!M.isBD(now.date, d.festivos) && dow > 0 && dow < 6) { hl.hidden = false; hl.textContent = 'Hoy es día inhábil bancario en México: el mercado cotiza, pero no hay FIX ni liquidación en pesos. Las compras se planean desde el siguiente día hábil.'; } else hl.hidden = true;
+    var st = live ? 'Datos publicados' : 'Datos de respaldo (sin conexión)';
+    $('status').textContent = st + ' · ' + M.fmtDate(d.asof.slice(0, 10), 'short') + ' ' + d.asof.slice(11) + ' h';
+    var zone = d.spot <= d.soporte[1] ? ['En zona de compra', 'b'] : d.spot <= d.soporte[1] + 0.10 ? ['Cerca del soporte', 'b'] : d.spot >= d.techo[1] ? ['Techo roto', ''] : d.spot >= d.techo[0] ? ['En zona de alerta', ''] : ['Zona media', ''];
+    $('chips').innerHTML = '<span class="chip ' + zone[1] + '">' + zone[0] + '</span>' +
+      '<span class="chip">Soporte ' + d.soporte[1].toFixed(2) + ' · piso ' + d.soporte[0].toFixed(2) + '</span>' +
+      '<span class="chip">Alerta ' + d.techo[0].toFixed(2) + ' · techo ' + d.techo[1].toFixed(2) + '</span>';
+    var sb = $('stale'), days = M.diffDays(now.date, d.asof.slice(0, 10));
+    if (days > 0) { sb.hidden = false; sb.textContent = 'Estos datos tienen ' + days + (days === 1 ? ' día' : ' días') + ' de antigüedad. ' + 'Se actualizan solos a las 7:00 y a las 13:00, de lunes a viernes. Toca «Recargar datos».'; }
+    else sb.hidden = true;
+  }
+
+  function renderChart() {
+    var d = DATA, P = M.projection(d);
+    var W = Math.max(300, Math.round($('chart').clientWidth || 640));
+    var H = Math.round(Math.min(280, Math.max(210, W * 0.45))), L = 40, R = 98, T = 12, B = 28;
+    var lv = [d.soporte[0], d.soporte[1], d.techo[0], d.techo[1]];
+    var lo = Math.min.apply(null, P.map(function (p) { return p.lo90; }).concat(lv)) - 0.05;
+    var hi = Math.max.apply(null, P.map(function (p) { return p.hi90; }).concat(lv)) + 0.05;
+    var step = (hi - lo) > 1.2 ? 0.2 : 0.1;
+    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    var x = function (i) { return L + (W - L - R) * i / (P.length - 1); };
+    var y = function (v) { return T + (H - T - B) * (1 - (v - lo) / (hi - lo)); };
+    var poly = function (a, b) {
+      var up = P.map(function (p, i) { return x(i).toFixed(1) + ',' + y(p[a]).toFixed(1); });
+      var dn = P.map(function (p, i) { return x(i).toFixed(1) + ',' + y(p[b]).toFixed(1); }).reverse();
+      return up.concat(dn).join(' ');
+    };
+    var s = '<svg class="ch" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Escenario central y bandas de probabilidad del USD/MXN para la próxima semana">';
+    for (var v = lo; v <= hi + 1e-9; v += step) {
+      s += '<line class="ax" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/><text x="' + (L - 6) + '" y="' + (y(v) + 3.5).toFixed(1) + '" text-anchor="end">' + v.toFixed(2) + '</text>';
+    }
+    s += '<polygon class="b90" points="' + poly('hi90', 'lo90') + '"/><polygon class="b68" points="' + poly('hi68', 'lo68') + '"/>';
+    var lvl = [[d.soporte[0], 'Piso', 'S'], [d.soporte[1], 'Soporte', 'S'], [d.techo[0], 'Alerta', 'R'], [d.techo[1], 'Techo', 'R']];
+    lvl.forEach(function (l) {
+      s += '<line class="lv' + l[2] + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(l[0]).toFixed(1) + '" y2="' + y(l[0]).toFixed(1) + '"/><text class="t' + l[2] + '" x="' + (W - R + 6) + '" y="' + (y(l[0]) + 3.5).toFixed(1) + '">' + l[1] + ' ' + l[0].toFixed(2) + '</text>';
+    });
+    s += '<polyline class="mline" points="' + P.map(function (p, i) { return x(i).toFixed(1) + ',' + y(p.mid).toFixed(1); }).join(' ') + '"/>';
+    s += '<circle class="dot" cx="' + x(0).toFixed(1) + '" cy="' + y(P[0].mid).toFixed(1) + '" r="5"/>';
+    s += '<text x="' + (x(0) + 9).toFixed(1) + '" y="' + (y(P[0].mid) - 9).toFixed(1) + '" style="fill:var(--ink);font-weight:500">Hoy ' + P[0].mid.toFixed(2) + '</text>';
+    P.forEach(function (p, i) {
+      s += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + M.fmtDate(p.date, 'short').replace(/^(\S+) (\d+).*/, '$1 $2') + '</text>';
+      if (p.ev.length) s += '<path class="evm" d="M' + (x(i) - 5).toFixed(1) + ',' + (H - B + 2) + ' l5,-8 l5,8 z"/>';
+    });
+    s += '</svg>';
+    $('chart').innerHTML = s;
+    var evs = [];
+    P.forEach(function (p) { p.ev.forEach(function (e) { evs.push('<span><b>' + esc(M.fmtDate(e.fecha, 'short')) + '</b> ' + esc(e.nombre) + (e.confirmado ? '' : ' (por confirmar)') + '</span>'); }); });
+    $('evl').innerHTML = evs.length ? '<span style="color:var(--warn)">▲ Eventos:</span>' + evs.join('') : '';
+  }
+
+  function tramoRow(t) {
+    return '<div class="tr"><div class="sw" style="background:' + TYPE[t.tipo] + '"></div>' +
+      '<div class="h"><span>' + esc(t.inst) + '</span><span class="mono">' + t.pct + '% · ' + money(t.usd) + ' USD</span></div>' +
+      '<div class="w">' + esc(t.cuando) + '</div><div class="n">' + esc(t.nivel) + '</div></div>';
+  }
+
+  function renderResult() {
+    var now = cdmx();
+    var usd = parseFloat(($('usd').value || '').replace(/[^0-9.]/g, ''));
+    var bud = parseFloat(($('budget').value || '').replace(',', '.'));
+    var r = M.strategy({ data: DATA, usd: usd, target: $('fecha').value, budget: bud > 0 ? bud : 0, today: now.date, hour: now.hour });
+    var out = $('out');
+    lastResult = null;
+    if (r.error) { out.innerHTML = '<div class="card"><p class="err">' + esc(r.error) + '</p></div>'; return; }
+    lastResult = r;
+    var h = '';
+    var bloques = r.tramos.length;
+    h += '<section class="verdict"><div class="lbl">Estrategia recomendada</div>' +
+      '<h2>' + esc(r.bias.charAt(0) + r.bias.slice(1).toLowerCase()) + ': ' + money(r.usd) + ' USD para el ' + esc(M.fmtDate(r.target)) + '</h2>' +
+      '<div class="pills"><span class="pill">Volatilidad ' + esc(r.vol) + '</span><span class="pill">' + esc(r.zoneText) + '</span><span class="pill">' + r.n + (r.n === 1 ? ' día hábil' : ' días hábiles') + ' para operar</span></div>' +
+      '<p>Opera entre el ' + esc(M.fmtDate(r.start, 'short')) + ' y el ' + esc(M.fmtDate(r.last, 'short')) + ' (liquidación a 24 horas). Equivale a ' + money(r.mxnSpot) + ' MXN al spot de hoy.</p></section>';
+    r.warnings.forEach(function (w) { h += '<div class="banner">' + esc(w) + '</div>'; });
+
+    h += '<section class="card"><div class="sec-h">Cómo repartir la compra</div><div class="bar" role="img" aria-label="Reparto porcentual de la compra">' +
+      r.tramos.map(function (t) { return '<div class="' + (t.tipo === 'open' ? 'open' : '') + '" style="flex:' + t.pct + ' 1 0;background:' + TYPE[t.tipo] + '">' + (t.pct >= 10 ? t.pct + '%' : '') + '</div>'; }).join('') +
+      '</div><div style="margin-top:10px">' + r.tramos.map(tramoRow).join('') + '</div></section>';
+
+    var s = r.single, dl = function (x) { return M.fmtDate(x, 'short'); };
+    var edge = s.noEdge ? 'Sin diferencia clara entre los días disponibles.' :
+      s.modo === 'esperar' ? 'Frente a comprar el ' + dl(s.refDay) + ': ahorro esperado ~' + s.ahorro.toFixed(2) + ' MXN por USD (≈ ' + money(s.ahorroMXN) + ' MXN en total).' :
+      'Esperar costaría ~' + s.ahorro.toFixed(2) + ' MXN más por USD (≈ ' + money(s.ahorroMXN) + ' MXN en total).';
+    h += '<section class="card one"><div class="sec-h" style="margin:0">Si prefieres una sola compra</div>' +
+      '<div class="day">' + esc(s.dayText.charAt(0).toUpperCase() + s.dayText.slice(1)) + '</div>' +
+      '<div class="win">' + esc(s.window) + ' h, hora CDMX</div>' +
+      '<div class="lbl">' + esc(s.instrument) + '</div>' +
+      '<div class="px">Precio esperado ~' + s.px.toFixed(2) + ' <span class="chip">Confianza ' + esc(s.conf) + '</span></div>' +
+      '<p class="hint" style="margin:0 0 6px">' + esc(edge) + '</p>' +
+      (s.ruta && s.ruta.length > 1 ? '<div class="lbl">Ruta del precio esperado</div><div class="rt">' + s.ruta.map(function (x) { return '<span class="chip' + (x.best ? ' best' : '') + '">' + esc(dl(x.date).replace(/^(\S+) (\d+).*/, '$1 $2')) + ' · ' + x.px.toFixed(2) + '</span>'; }).join('') + '</div>' : '') +
+      '<ul class="pl">' + s.bullets.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join('') + '</ul>' +
+      '<p class="hint">El modelo no adivina la dirección del tipo de cambio: la ventaja es chica y por eso la confianza es ' + esc(s.conf.toLowerCase()) + '. Úsalo para ordenar la decisión, no como garantía.</p>' +
+      (s.alt ? '<div class="alt">' + esc(s.alt) + '</div>' : '') + '</section>';
+
+    h += '<section class="card"><div class="sec-h">Rango probable a tu fecha</div><div class="kv">' +
+      '<div><div class="lbl">68% de los casos</div><div class="v">' + r.range68[0].toFixed(2) + ' – ' + r.range68[1].toFixed(2) + '</div></div>' +
+      '<div><div class="lbl">90% de los casos</div><div class="v">' + r.range90[0].toFixed(2) + ' – ' + r.range90[1].toFixed(2) + '</div></div>' +
+      '<div><div class="lbl">Forward a tu fecha</div><div class="v">~' + r.F.toFixed(2) + '</div><div class="s">' + (r.carry >= 0 ? '+' : '') + money(r.carry) + ' MXN contra el spot de hoy</div></div>' +
+      '</div></section>';
+
+    h += '<section class="card"><div class="sec-h">Reglas de parada</div><ul class="pl">' + r.stops.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></section>';
+    h += '<div><button class="btn g" id="copy" type="button">Copiar resumen</button> <span class="foot" id="copied" role="status"></span></div>';
+    out.innerHTML = h;
+    var cb = $('copy');
+    if (cb) cb.addEventListener('click', copySummary);
+  }
+
+  function copySummary() {
+    var r = lastResult; if (!r) return;
+    var L = ['MESA FX · USD/MXN', 'Compra: ' + money(r.usd) + ' USD para el ' + M.fmtDate(r.target), 'Estrategia: ' + r.bias + ' · Volatilidad ' + r.vol,
+      'Spot ' + DATA.spot.toFixed(4) + ' · FIX ' + (DATA.fixHoy || DATA.fix).toFixed(4) + ' · corte ' + DATA.asof.replace('T', ' '), ''];
+    r.tramos.forEach(function (t) { L.push('- ' + t.pct + '% (' + money(t.usd) + ' USD) ' + t.inst + ': ' + t.cuando + '. ' + t.nivel); });
+    L.push('', 'Una sola compra: ' + r.single.dayText + ', ' + r.single.window + ' h CDMX (' + r.single.instrument + '), precio esperado ~' + r.single.px.toFixed(2) + ', confianza ' + r.single.conf, '', 'Reglas de parada:');
+    r.stops.forEach(function (x) { L.push('- ' + x); });
+    var txt = L.join('\n'), note = $('copied');
+    var done = function (ok) { note.textContent = ok ? 'Copiado' : 'No se pudo copiar. Selecciona el texto manualmente.'; };
+    try { navigator.clipboard.writeText(txt).then(function () { done(true); }, function () { done(false); }); } catch (e) { done(false); }
+  }
+
+  function setQuick() {
+    var now = cdmx(), q = [['Hoy', 0], ['Mañana', 1], ['3 días', 3], ['15 días', 15], ['1 mes', 30], ['3 meses', 90]];
+    $('quick').innerHTML = q.map(function (a) { return '<button type="button" class="qb" data-d="' + a[1] + '">' + a[0] + '</button>'; }).join('');
+    $('quick').addEventListener('click', function (ev) {
+      var b = ev.target.closest('.qb'); if (!b) return;
+      $('fecha').value = M.addDays(cdmx().date, +b.getAttribute('data-d'));
+      $('ex').hidden = true; save(); renderResult();
+    });
+    $('fecha').min = now.date;
+  }
+  function save() { store('mfx_usd', $('usd').value); store('mfx_fecha', $('fecha').value); store('mfx_budget', $('budget').value); }
+
+  function ageMin() {
+    var n = cdmx(), a = DATA.asof, hh = +a.slice(11, 13), mm = +a.slice(14, 16);
+    return M.diffDays(n.date, a.slice(0, 10)) * 1440 + (n.hour * 60 - hh * 60 - mm);
+  }
+  function mktOpen(n) { var w = new Date(n.date + 'T12:00:00Z').getUTCDay(); return w > 0 && w < 6 && n.hour >= 7 && n.hour < 15; }
+  function renderAge() {
+    var a = $('age'), b = $('refbtn'), m = ageMin(), t;
+    if (loading) t = 'Cargando…';
+    else if (note) t = note;
+    else if (m < 2) t = 'Actualizado hace un momento';
+    else if (m < 120) t = 'Actualizado hace ' + Math.round(m) + ' min';
+    else t = 'Último dato: ' + M.fmtDate(DATA.asof.slice(0, 10), 'short') + ' ' + DATA.asof.slice(11) + ' h';
+    a.textContent = t; b.disabled = loading;
+  }
+  function loadData(manual) {
+    if (loading) return;
+    loading = true; note = ''; renderAge();
+    fetch('mercado.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (v) {
+      var ok = v && typeof v.spot === 'number' && typeof v.asof === 'string' && Array.isArray(v.soporte) && Array.isArray(v.techo) && Array.isArray(v.eventos) && Array.isArray(v.festivos);
+      if (!ok) throw 0;
+      DATA = Object.assign({}, M.DEFAULT_DATA, v); live = true; loading = false;
+      note = manual ? 'Datos recargados' : '';
+      renderMarket(); renderChart(); renderResult(); renderAge();
+    }).catch(function () { loading = false; note = manual ? 'No se pudo recargar. Revisa tu conexión.' : ''; renderAge(); });
+  }
+  function tick() {
+    renderAge(); renderMarket();
+  }
+
+  function init() {
+    var now = cdmx();
+    setQuick();
+    var su = store('mfx_usd'), sf = store('mfx_fecha'), sb = store('mfx_budget');
+    if (su) { $('usd').value = su; $('ex').hidden = true; }
+    $('fecha').value = (sf && sf >= now.date) ? sf : M.addDays(now.date, 15);
+    if (sf && sf >= now.date) $('ex').hidden = true;
+    if (sb) $('budget').value = sb;
+    $('usd').addEventListener('input', function () { $('ex').hidden = true; save(); renderResult(); });
+    $('usd').addEventListener('blur', function () {
+      var n = parseFloat(this.value.replace(/[^0-9.]/g, '')); if (n > 0) this.value = Math.round(n).toLocaleString('en-US');
+    });
+    $('fecha').addEventListener('change', function () { $('ex').hidden = true; save(); renderResult(); });
+    $('budget').addEventListener('input', function () { save(); renderResult(); });
+    renderMarket(); renderChart(); renderResult();
+    var rz = null, lastW = $('chart').clientWidth;
+    window.addEventListener('resize', function () {
+      clearTimeout(rz);
+      rz = setTimeout(function () { var w = $('chart').clientWidth; if (w !== lastW) { lastW = w; renderChart(); } }, 150);
+    });
+
+    $('refbtn').addEventListener('click', function () { loadData(true); });
+    setInterval(tick, 30000);
+    setInterval(function () { if (!document.hidden) loadData(false); }, 600000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { tick(); loadData(false); } });
+    renderAge(); loadData(false);
+    if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
+  }
+  init();
+})();
+</script>
+
+</body>
+</html>

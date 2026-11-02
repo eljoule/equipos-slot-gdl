@@ -1,0 +1,98 @@
+{
+ "anclaje": 18.8055,
+ "asof": "2026-11-02T10:10",
+ "cierreAnterior": 18.7856,
+ "eventos": [
+  {
+   "confirmado": true,
+   "extra": 0.1,
+   "fecha": "2026-11-03",
+   "nombre": "Elecciones intermedias EE.UU.",
+   "riesgo": 3
+  },
+  {
+   "confirmado": true,
+   "extra": 0.06,
+   "fecha": "2026-11-05",
+   "nombre": "Decisión de Banxico",
+   "riesgo": 2
+  },
+  {
+   "confirmado": false,
+   "extra": 0.09,
+   "fecha": "2026-11-06",
+   "nombre": "Empleo EE.UU. (NFP octubre)",
+   "riesgo": 3
+  },
+  {
+   "confirmado": false,
+   "extra": 0.03,
+   "fecha": "2026-11-09",
+   "nombre": "INPC México (octubre)",
+   "riesgo": 1
+  },
+  {
+   "confirmado": false,
+   "extra": 0.07,
+   "fecha": "2026-11-12",
+   "nombre": "CPI EE.UU. (octubre)",
+   "riesgo": 2
+  },
+  {
+   "confirmado": false,
+   "extra": 0.1,
+   "fecha": "2026-12-09",
+   "nombre": "Decisión de la Fed",
+   "riesgo": 3
+  },
+  {
+   "confirmado": false,
+   "extra": 0.06,
+   "fecha": "2026-12-17",
+   "nombre": "Decisión de Banxico",
+   "riesgo": 2
+  }
+ ],
+ "festivos": [
+  "2026-11-02",
+  "2026-11-11",
+  "2026-11-16",
+  "2026-11-26",
+  "2026-12-25",
+  "2027-01-01",
+  "2027-01-18",
+  "2027-02-01",
+  "2027-02-15",
+  "2027-03-15"
+ ],
+ "fix": 18.7962,
+ "fixFecha": "2026-10-30",
+ "fixHoy": null,
+ "fixes": [
+  {
+   "fecha": "2026-10-29",
+   "valor": 18.8148
+  },
+  {
+   "fecha": "2026-10-30",
+   "valor": 18.7962
+  }
+ ],
+ "fuente": "Bloomberg Línea 10:10 CDMX (spot 18.5631; última fila de tabla, verificada 10:47). UnoTV 18.79 es lectura matutina más vieja; diferencia explicada por movimiento intradía. Hoy es inhábil bancario: sin FIX",
+ "rangoDia": [
+  18.5557,
+  18.8198
+ ],
+ "soporte": [
+  18.45,
+  18.6
+ ],
+ "spot": 18.5631,
+ "tasaMXN": 6.5,
+ "tasaUSD": 3.9,
+ "techo": [
+  19,
+  19.25
+ ],
+ "vol": 12.5
+}
